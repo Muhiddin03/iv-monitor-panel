@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IV Monitor — Hamshira Paneli</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#060910;--bg2:#0c1322;--bg3:#101c30;
+  --border:#182035;--text:#c8d8f0;--muted:#3a5070;
+  --accent:#3b9eff;--ok:#22c55e;
+  --w20:#f59e0b;--w10:#f97316;--w5:#ef4444;
+  --mono:'JetBrains Mono',monospace;
+  --head:'Syne',sans-serif;
+}
+body{font-family:var(--mono);background:var(--bg);color:var(--text);
+  min-height:100vh;padding:14px}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    linear-gradient(rgba(59,158,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(59,158,255,.018) 1px,transparent 1px);
+  background-size:36px 36px}
+
+.wrap{max-width:980px;margin:0 auto;position:relative;z-index:1}
+
+/* ── HEADER ── */
+.hdr{display:flex;justify-content:space-between;align-items:center;
+  background:var(--bg2);border:1px solid var(--border);border-radius:13px;
+  padding:14px 20px;margin-bottom:14px}
+.htitle{font-family:var(--head);font-size:1.1em;color:var(--accent);
+  letter-spacing:2px;text-transform:uppercase}
+.hsub{font-size:.6em;color:var(--muted);margin-top:3px}
+.hright{display:flex;align-items:center;gap:10px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);
+  animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
+.clk{font-size:.78em;color:var(--accent);background:rgba(59,158,255,.08);
+  padding:5px 11px;border-radius:7px;border:1px solid rgba(59,158,255,.15)}
+
+/* ── GLOBAL ALERT ── */
+.galert{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);
+  border-radius:10px;padding:11px 16px;margin-bottom:13px;color:#fca5a5;
+  font-weight:700;text-align:center;font-size:.85em;
+  display:none;animation:pulse .85s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:12px;text-align:center}
+.snum{font-family:var(--head);font-size:1.8em;font-weight:800}
+.slbl{font-size:.57em;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+.snum.a{color:var(--accent)}.snum.ok{color:var(--ok)}
+.snum.w{color:var(--w20)}.snum.c{color:var(--w5)}
+
+/* ── GRID ── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:13px}
+
+/* ── CARD ── */
+.card{background:var(--bg2);border:1px solid var(--border);
+  border-top:2px solid var(--border);border-radius:13px;
+  padding:18px;position:relative;transition:border-top-color .3s}
+.card.ok    {border-top-color:var(--ok)}
+.card.warn20{border-top-color:var(--w20)}
+.card.warn10{border-top-color:var(--w10)}
+.card.warn5 {border-top-color:var(--w5);animation:pulse .85s infinite}
+.card.done  {border-top-color:var(--w5);animation:pulse 1.2s infinite}
+.card.offline{opacity:.45}
+
+/* Top */
+.ctop{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.cp{font-family:var(--head);font-size:.9em}
+.cid{font-size:.57em;color:var(--muted);margin-top:2px}
+.badge{font-size:.6em;font-weight:700;padding:3px 9px;border-radius:5px;
+  text-transform:uppercase;white-space:nowrap}
+.b-ok{background:rgba(34,197,94,.1);color:var(--ok);border:1px solid rgba(34,197,94,.2)}
+.b-warn20{background:rgba(245,158,11,.1);color:var(--w20);border:1px solid rgba(245,158,11,.2)}
+.b-warn10{background:rgba(249,115,22,.1);color:var(--w10);border:1px solid rgba(249,115,22,.2)}
+.b-warn5,.b-done{background:rgba(239,68,68,.15);color:var(--w5);
+  border:1px solid rgba(239,68,68,.3);animation:blink .65s infinite}
+.b-offline{background:rgba(100,100,100,.1);color:var(--muted);border:1px solid rgba(100,100,100,.15)}
+.b-wait{background:rgba(59,158,255,.1);color:var(--accent);border:1px solid rgba(59,158,255,.2)}
+
+/* Big pct */
+.big{text-align:center;padding:4px 0 12px}
+.bnum{font-family:var(--head);font-size:3.2em;line-height:1}
+.bnum.ok    {color:var(--ok)}.bnum.warn20{color:var(--w20)}
+.bnum.warn10{color:var(--w10)}.bnum.warn5,.bnum.done{color:var(--w5)}
+.bnum.offline,.bnum.wait{color:var(--muted)}
+.bsub{font-size:.6em;color:var(--muted);margin-top:3px;letter-spacing:1px}
+
+/* Progress */
+.ticks{position:relative;height:12px;margin-bottom:3px}
+.tick{position:absolute;font-size:.54em;transform:translateX(-50%);color:var(--muted)}
+.t5{left:5%;color:rgba(239,68,68,.5)}.t10{left:10%;color:rgba(249,115,22,.5)}
+.t20{left:20%;color:rgba(245,158,11,.5)}.t100{left:100%;transform:translateX(-100%)}
+.track{height:18px;background:rgba(255,255,255,.04);border-radius:7px;
+  position:relative;overflow:hidden;border:1px solid var(--border)}
+.fill{height:100%;border-radius:6px;transition:width 1.2s ease,background .4s}
+.fill.ok{background:linear-gradient(90deg,#14532d,#22c55e)}
+.fill.warn20{background:linear-gradient(90deg,#78350f,#f59e0b)}
+.fill.warn10{background:linear-gradient(90deg,#7c2d12,#f97316)}
+.fill.warn5,.fill.done{background:linear-gradient(90deg,#7f1d1d,#ef4444)}
+.fill.offline,.fill.wait{background:var(--border)}
+.flbl{position:absolute;right:7px;top:50%;transform:translateY(-50%);
+  font-size:.67em;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.thr{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.07)}
+.thr5{left:5%}.thr10{left:10%}.thr20{left:20%}
+
+/* Info */
+.infos{display:flex;justify-content:space-around;
+  border-top:1px solid var(--border);margin-top:11px;padding-top:11px}
+.ii{display:flex;flex-direction:column;align-items:center;gap:2px}
+.il{font-size:.52em;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.iv{font-size:.84em;font-weight:700}
+
+/* Actions */
+.acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.abtn{flex:1;padding:8px 5px;border-radius:7px;font-family:var(--mono);
+  font-size:.7em;font-weight:700;cursor:pointer;text-align:center;
+  border:1px solid;transition:all .2s;white-space:nowrap;background:none}
+.a-red{border-color:rgba(239,68,68,.35);color:var(--w5)}
+.a-red:hover{background:rgba(239,68,68,.12)}
+.a-green{border-color:rgba(34,197,94,.3);color:var(--ok)}
+.a-green:hover{background:rgba(34,197,94,.12)}
+.a-blue{border-color:rgba(59,158,255,.3);color:var(--accent)}
+.a-blue:hover{background:rgba(59,158,255,.12)}
+.a-gray{border-color:var(--border);color:var(--muted)}
+.a-gray:hover{background:rgba(255,255,255,.06);color:var(--text)}
+
+/* Servo indicator */
+.servo-row{display:flex;align-items:center;gap:8px;margin-top:8px;
+  padding:8px 10px;background:rgba(255,255,255,.03);border-radius:7px;
+  border:1px solid var(--border)}
+.servo-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.servo-dot.open{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.servo-dot.closed{background:var(--w5);box-shadow:0 0 6px var(--w5)}
+.servo-lbl{font-size:.68em;color:var(--muted);flex:1}
+.servo-val{font-size:.7em;font-weight:700}
+
+/* Empty */
+.empty{grid-column:1/-1;text-align:center;padding:52px 20px;color:var(--muted);font-size:.85em}
+
+/* Config modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;
+  display:flex;align-items:center;justify-content:center;padding:16px;display:none}
+.modal{background:#0d1525;border:1px solid #1a2a40;border-radius:16px;
+  padding:24px;width:100%;max-width:360px}
+.modal h2{font-family:var(--head);font-size:.95em;color:var(--accent);
+  margin-bottom:16px;text-align:center;text-transform:uppercase;letter-spacing:1px}
+.modal label{display:block;font-size:.6em;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.8px;margin:10px 0 4px}
+.modal input{width:100%;background:rgba(255,255,255,.05);border:1px solid #1a2a40;
+  border-radius:7px;padding:9px 11px;color:var(--text);font-family:var(--mono);
+  font-size:.85em;outline:none}
+.modal input:focus{border-color:var(--accent)}
+.modal-btns{display:flex;gap:8px;margin-top:16px}
+.mbtn{flex:1;padding:10px;border-radius:8px;font-family:var(--mono);font-size:.8em;
+  font-weight:700;cursor:pointer;text-align:center;border:1px solid;transition:all .2s}
+.mb-ok{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:var(--ok)}
+.mb-ok:hover{background:rgba(34,197,94,.2)}
+.mb-cancel{background:rgba(255,255,255,.03);border-color:var(--border);color:var(--muted)}
+.mb-cancel:hover{background:rgba(255,255,255,.07);color:var(--text)}
+
+.foot{text-align:center;padding:14px 0 4px;font-size:.57em;color:#111820}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div>
+      <div class="htitle">&#127973; IV Monitor — Hamshira Paneli</div>
+      <div class="hsub">Firebase Real-time &bull; Avtomatik yangilanadi</div>
+    </div>
+    <div class="hright">
+      <div class="dot"></div>
+      <div class="clk" id="clk">--:--:--</div>
+    </div>
+  </div>
+
+  <!-- GLOBAL ALERT -->
+  <div class="galert" id="galert">
+    &#128680; XAVF! Bir yoki bir nechta qurilmada kritik holat aniqlandi!
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat"><div class="snum a" id="sTotal">0</div><div class="slbl">Jami</div></div>
+    <div class="stat"><div class="snum ok" id="sOk">0</div><div class="slbl">Normal</div></div>
+    <div class="stat"><div class="snum w" id="sWarn">0</div><div class="slbl">Ogohlantirish</div></div>
+    <div class="stat"><div class="snum c" id="sCrit">0</div><div class="slbl">Kritik</div></div>
+  </div>
+
+  <!-- CARDS -->
+  <div class="grid" id="grid">
+    <div class="empty">Firebase ga ulanmoqda...</div>
+  </div>
+
+  <div class="foot">IV Monitor &bull; Firebase Real-time Database &bull; Vercel</div>
+</div>
+
+<!-- SERVO MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>&#9881; Servo Boshqaruv</h2>
+    <p style="font-size:.72em;color:var(--muted);text-align:center;margin-bottom:12px" id="modalPatient"></p>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="mbtn mb-ok" onclick="servoAction('open')">&#128275; Servo OCHISH</button>
+      <button class="mbtn" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:var(--w5)" onclick="servoAction('close')">&#128274; Servo YOPISH</button>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn mb-cancel" onclick="closeModal()">Bekor qilish</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── FIREBASE SOZLASH ──
+// Bu qiymatlarni Firebase Console dan oling
+const firebaseConfig = {
+  apiKey: "AIzaSyCHJyNefLo1MyTkbUQFydGsf_DeIHTpCoA",
+  authDomain: "smartiv-eed6a.firebaseapp.com",
+  projectId: "smartiv-eed6a",
+  storageBucket: "smartiv-eed6a.firebasestorage.app",
+  messagingSenderId: "634908791741",
+  appId: "1:634908791741:web:519f3fdd87d3bb648978d4",
+  measurementId: "G-N7NETRFJE5"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ── SOAT ──
+setInterval(function(){
+  document.getElementById('clk').textContent = new Date().toLocaleTimeString();
+}, 1000);
+
+// ── YORDAMCHI ──
+function stateOf(d) {
+  if (!d) return 'offline';
+  var now = Date.now();
+  var seen = d.lastSeen || 0;
+  // lastSeen millis() — server vaqti emas, lekin yangilanishdan
+  // taxminan 30 sekund o'tsa oflayn deb hisoblaymiz
+  // Firebase real-time bo'lgani uchun bu muammo kam bo'ladi
+  if (d.mode === 0 || d.mode === 1) return 'wait';
+  if (d.mode === 3) return 'done';
+  var p = d.pct || 0;
+  if (p > 20) return 'ok';
+  if (p > 10) return 'warn20';
+  if (p > 5)  return 'warn10';
+  return 'warn5';
+}
+
+function badgeName(s) {
+  return {
+    wait:'Sozlanmoqda', ok:'Normal', warn20:'20% qoldi',
+    warn10:'10% qoldi!', warn5:'XAVF!', done:'TUGADI!', offline:'Oflayn'
+  }[s] || s;
+}
+
+function fmtTime(mins) {
+  if (!mins || mins <= 0 || mins > 9999) return '—';
+  var h=Math.floor(mins/60), m=Math.floor(mins)%60;
+  return h>0 ? (h+'s '+m+'dq') : (m+' dq');
+}
+
+// ── RENDER ──
+var currentDevices = {};
+var activeDeviceId = null;
+
+function render() {
+  var list = Object.values(currentDevices);
+  var grid = document.getElementById('grid');
+
+  if (list.length === 0) {
+    grid.innerHTML = '<div class="empty">Hech qanday qurilma yo\'q.<br><span style="opacity:.5;font-size:.85em">ESP32 yoqilganda avtomatik qo\'shiladi</span></div>';
+    document.getElementById('sTotal').textContent = 0;
+    document.getElementById('sOk').textContent = 0;
+    document.getElementById('sWarn').textContent = 0;
+    document.getElementById('sCrit').textContent = 0;
+    document.getElementById('galert').style.display = 'none';
+    return;
+  }
+
+  var total=0, okN=0, warnN=0, critN=0, hasCrit=false;
+  var html = '';
+
+  list.forEach(function(d) {
+    total++;
+    var s  = stateOf(d);
+    var p  = Math.max(0, Math.min(100, d.pct || 0));
+    var fp = Math.max(0.5, p);
+    var fc = {ok:'ok',warn20:'warn20',warn10:'warn10',
+              warn5:'warn5',done:'done',wait:'wait',offline:'offline'}[s]||'offline';
+
+    if (s==='ok'||s==='wait') okN++;
+    else if (s==='warn20'||s==='warn10') warnN++;
+    else if (s==='warn5'||s==='done') { critN++; hasCrit=true; }
+
+    var servoOpen = d.servo !== false;
+
+    html += '<div class="card '+s+'">';
+
+    // Top
+    html += '<div class="ctop"><div>';
+    html += '<div class="cp">'+(d.patient||'Bemor')+'</div>';
+    html += '<div class="cid">ID: '+(d.id||'—')+'</div>';
+    html += '</div>';
+    html += '<span class="badge b-'+s+'">'+badgeName(s)+'</span>';
+    html += '</div>';
+
+    // Big pct
+    var pStr = (s!=='offline') ? p.toFixed(1)+'%' : '—';
+    html += '<div class="big">';
+    html += '<div class="bnum '+s+'">'+pStr+'</div>';
+    html += '<div class="bsub">QOLGAN MIQDOR</div>';
+    html += '</div>';
+
+    // Bar
+    html += '<div class="ticks">';
+    html += '<span class="tick t5">5%</span><span class="tick t10">10%</span>';
+    html += '<span class="tick t20">20%</span><span class="tick t100">100%</span>';
+    html += '</div>';
+    html += '<div class="track">';
+    html += '<div class="thr thr5"></div><div class="thr thr10"></div><div class="thr thr20"></div>';
+    html += '<div class="fill '+fc+'" style="width:'+fp+'%">';
+    html += '<span class="flbl">'+pStr+'</span></div></div>';
+
+    // Info
+    html += '<div class="infos">';
+    html += '<div class="ii"><span class="il">Qoldi</span><span class="iv">'+(d.curMl?d.curMl.toFixed(0)+' ml':'—')+'</span></div>';
+    html += '<div class="ii"><span class="il">Tomchi/min</span><span class="iv">'+(d.dpm&&d.dpm>0?d.dpm.toFixed(1):'—')+'</span></div>';
+    html += '<div class="ii"><span class="il">Vaqt</span><span class="iv">'+fmtTime(d.minsLeft)+'</span></div>';
+    html += '</div>';
+
+    // Servo holati
+    html += '<div class="servo-row">';
+    html += '<div class="servo-dot '+(servoOpen?'open':'closed')+'"></div>';
+    html += '<span class="servo-lbl">Servo (shlang)</span>';
+    html += '<span class="servo-val" style="color:'+(servoOpen?'var(--ok)':'var(--w5)')+'">'+
+            (servoOpen?'OCHIQ':'YOPIQ')+'</span>';
+    html += '</div>';
+
+    // Tugmalar
+    html += '<div class="acts">';
+    html += '<button class="abtn a-blue" onclick="openServoModal(\''+d.id+'\',\''+
+            (d.patient||'Bemor')+'\')">&#9881; Servo</button>';
+    if (d.buzzer) {
+      html += '<button class="abtn a-red" onclick="muteBuzzer(\''+d.id+'\',\''+d.ip+'\')">&#128276; Buzzer</button>';
+    }
+    html += '</div>';
+
+    html += '</div>'; // card
+  });
+
+  grid.innerHTML = html;
+  document.getElementById('sTotal').textContent = total;
+  document.getElementById('sOk').textContent = okN;
+  document.getElementById('sWarn').textContent = warnN;
+  document.getElementById('sCrit').textContent = critN;
+  document.getElementById('galert').style.display = hasCrit ? 'block' : 'none';
+}
+
+// ── FIREBASE REAL-TIME LISTEN ──
+db.ref('/devices').on('value', function(snapshot) {
+  currentDevices = snapshot.val() || {};
+  render();
+});
+
+// ── SERVO MODAL ──
+function openServoModal(id, patient) {
+  activeDeviceId = id;
+  document.getElementById('modalPatient').textContent = '👤 ' + patient;
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('overlay').style.display = 'none';
+  activeDeviceId = null;
+}
+
+function servoAction(action) {
+  if (!activeDeviceId) return;
+  var d = currentDevices[activeDeviceId];
+  if (!d || !d.ip) {
+    alert('Qurilma IP manzili topilmadi!'); return;
+  }
+
+  var url = 'http://' + d.ip + ':80/' + (action==='open' ? 'open' : 'stop');
+
+  fetch(url, {signal: AbortSignal.timeout(5000)})
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res.ok) {
+        // Firebase ni ham yangilash
+        db.ref('/devices/' + activeDeviceId + '/servo')
+          .set(action === 'open');
+        closeModal();
+      }
+    })
+    .catch(function(){
+      // Agar to'g'ridan-to'g'ri ulanmasa, Firebase orqali buyruq yuboramiz
+      db.ref('/devices/' + activeDeviceId + '/cmd').set({
+        action: action, ts: Date.now()
+      });
+      closeModal();
+      alert('Firebase orqali buyruq yuborildi');
+    });
+}
+
+function muteBuzzer(id, ip) {
+  var url = 'http://' + ip + ':80/mute';
+  fetch(url, {signal: AbortSignal.timeout(5000)})
+    .then(function(){ db.ref('/devices/'+id+'/buzzer').set(false); })
+    .catch(function(){ db.ref('/devices/'+id+'/cmd').set({action:'mute',ts:Date.now()}); });
+}
+
+// Overlay tashqariga bosish
+document.getElementById('overlay').addEventListener('click', function(e){
+  if (e.target === this) closeModal();
+});
+</script>
+</body>
+</html>
